@@ -6,6 +6,9 @@
 #include <termios.h>
 #include <unistd.h>
 
+/* defines */
+#define CTRL_KEY(k) ((k) & 0x1f)  // A macro to turn alphabet key codes into their CTRL counterparts
+
 /* data */
 
 struct termios orig_termios;  // Stores the original terminal settings so we can restore the user's terminal!
@@ -38,21 +41,42 @@ void enableRawMode() {  // Enables "raw" mode, which allows us to read the user'
   if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr");
 }
 
-/* main */
+char editorReadKey(){  // Waits for a keypress then returns it
+  int nread;
+  char c;
+  while ((nread = read(STDIN_FILENO, &c, 1)) != 1){
+    if (nread == -1 && errno != EAGAIN) die("read");
+  }
+  return c;
+}
+
+/* output */
+
+void editorRefreshScreen() {
+  write(STDOUT_FILENO, "\x1b[2J", 4);
+}
+
+/* input */
+
+void editorProcessKeypress(){  // Waits for a keypress, then handles it.
+  char c = editorReadKey();
+
+  switch (c) {
+    case CTRL_KEY('q'):
+      exit(0);
+      break;
+  }
+}
+
+/* init */
 
 int main(){
   enableRawMode();
 
   char c;
   while (1){
-    char c = '\0';
-    if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");  // This is for cygwin because when read() times out it returns -1 with an errno of EAGAIN instead of returning 0
-    if (iscntrl(c)){  // Tests whether a character is a control character (nonprintable character)
-      printf("%d\r\n", c);
-    } else {
-      printf("%d ('%c')\r\n", c, c);
-    }
-    if (c == 'q') break;
+    editorRefreshScreen();
+    editorProcessKeypress();
   }
   return 0;
 }
